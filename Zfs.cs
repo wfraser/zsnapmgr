@@ -1,4 +1,4 @@
-﻿#define NOZFS
+﻿//#define NOZFS
 
 using System;
 using System.Diagnostics;
