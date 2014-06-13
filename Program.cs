@@ -15,15 +15,10 @@ namespace zsnapmgr
         {
             var allSnaps = new ZfsSnapshots();
             DateTime now = DateTime.Now;
-            var toDelete = new List<string>();
+            var toDelete = new List<ZfsSnapshots.SnapInfo>();
 
             foreach (string fs in allSnaps.Filesystems())
             {
-                if (fs.StartsWith("wrfpool/vm/")) // Only snapshot these manually.
-                {
-                    continue;
-                }
-
                 int count = 0;
                 foreach (ZfsSnapshots.SnapInfo snap in allSnaps.Snapshots(fs))
                 {
@@ -36,14 +31,19 @@ namespace zsnapmgr
 
                     bool delete = false;
 
-                    if (count == 1 && daysOld != 0)
+                    if ((count == 1) && (daysOld != 0) && !snap.NoAutoSnapshot)
                     {
                         Console.Write(ZfsSnapshots.Snapshot(fs));
                         Console.WriteLine("{0}\t{1}\t[NEW]", fs, DateTime.Now.ToString("yyyy-MM-dd"));
                         count++;
                     }
 
-                    Console.Write("{0}\t{1}\t{2} days old\t#{3}", snap.Filesystem, snap.Date.ToString("yyyy-MM-dd"), daysOld, count);
+                    Console.Write("{0}\t{1}\t{2} days old\t{3}B\t#{4}",
+                        snap.Filesystem,
+                        snap.Date.ToString("yyyy-MM-dd"),
+                        daysOld,
+                        snap.Size.HumanNumber("F2"),
+                        count);
 
                     if (count > 60)
                     {
@@ -81,14 +81,14 @@ namespace zsnapmgr
                     if (delete)
                     {
                         Console.Write("\t[delete]");
-                        toDelete.Add(snap.Name);
+                        toDelete.Add(snap);
                     }
 
                     Console.WriteLine();
                 }
             }
 
-            foreach (string delete in toDelete)
+            foreach (ZfsSnapshots.SnapInfo delete in toDelete)
             {
                 Console.Write(ZfsSnapshots.Delete(delete));
             }
