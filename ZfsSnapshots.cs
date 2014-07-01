@@ -7,16 +7,19 @@ namespace zsnapmgr
     class ZfsSnapshots
     {
         public ZfsSnapshots()
+            : this(Zfs.ListSnapshots())
+        {
+        }
+
+        public ZfsSnapshots(string snapshotList)
         {
             m_snaps = new Dictionary<string, List<SnapInfo>>();
 
-            string output = Zfs.ListSnapshots();
-
-            foreach (string snap in output.Split('\n'))
+            foreach (string snap in snapshotList.Split('\n'))
             {
                 string[] parts = snap.Split('\t');
                 string name = parts[0];
-                long size = parts[1].AsLong();
+                long? size = (parts.Length > 1) ? (long?)parts[1].AsLong() : null;
                 bool noAutoSnap = ((parts.Length > 2) && !string.IsNullOrEmpty(parts[2]) && (parts[2] != "-") && (parts[2] != "no"));
 
                 var info = new SnapInfo();
@@ -28,7 +31,15 @@ namespace zsnapmgr
                 info.Filesystem = parts[0];
 
                 parts = parts[1].Split(new char[] { '-' }, 3);
-                info.Date = new DateTime(parts[0].AsInt(), parts[1].AsInt(), parts[2].AsInt());
+                try
+                {
+                    info.Date = new DateTime(parts[0].AsInt(), parts[1].AsInt(), parts[2].AsInt());
+                }
+                catch (FormatException)
+                {
+                    // Snapshot name not in the date format. Skip it.
+                    continue;
+                }
 
                 if (!m_snaps.ContainsKey(info.Filesystem))
                 {
@@ -63,7 +74,7 @@ namespace zsnapmgr
             public string Name;
             public string Filesystem;
             public DateTime Date;
-            public long Size;
+            public long? Size;
             public bool NoAutoSnapshot;
         }
 
