@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -154,7 +154,7 @@ namespace zsnapmgr
             Console.WriteLine();
             Console.WriteLine("Starting backups.");
             Console.WriteLine();
-            DoBackups(volumes);
+            DoBackups(volumes, mountPoint);
         }
 
         static bool GatherVolume(string volume, ref BackupOptions opts)
@@ -261,7 +261,7 @@ namespace zsnapmgr
             public string IncrementalStartDate;
         }
 
-        static void DoBackups(IEnumerable<BackupOptions> volumes)
+        static void DoBackups(IEnumerable<BackupOptions> volumes, string mountPoint)
         {
             foreach (BackupOptions vol in volumes)
             {
@@ -283,7 +283,7 @@ namespace zsnapmgr
 
                 Zfs.Send(
                     string.Format("{0}@{1}", vol.Filesystem, vol.SnapshotDate),
-                    string.Format("{0}@{1}.zfs.bz2", vol.Filename, vol.SnapshotDate),
+                    Path.Combine(mountPoint, string.Format("{0}@{1}.zfs.bz2", vol.Filename, vol.SnapshotDate)),
                     (vol.IncrementalStartDate == null) ? null : string.Format("{0}@{1}", vol.Filesystem, vol.IncrementalStartDate),
                     "pbzip2");
                 Console.WriteLine();
