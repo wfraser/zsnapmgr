@@ -42,13 +42,23 @@ namespace zsnapmgr
 
         public void Print()
         {
+            if (m_items.Count == 0)
+                return;
+
             var measures = new int[m_items[0].Count];
 
             foreach (List<string> item in m_items)
             {
                 for (int i = 0; i < measures.Length; i++)
                 {
-                    measures[i] = Math.Max(measures[i], item[i].Length);
+                    if (item[i] != null)
+                    {
+                        measures[i] = Math.Max(measures[i], item[i].Length);
+                    }
+                    else
+                    {
+                        item[i] = string.Empty;
+                    }
                 }
             }
 
