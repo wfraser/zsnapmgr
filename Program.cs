@@ -72,7 +72,11 @@ namespace zsnapmgr
                 menu.Print();
                 Console.WriteLine();
 
-                Console.Write("Enter a number to make changes, '+' to add a volume, '-' to remove one, or <return> to start backup: ");
+                Console.Write("Enter a number to make changes,\n"
+                    + "\t'+' to add a volume,\n"
+                    + "\t'-' to remove one,\n"
+                    + "\t'd' to change all dates,\n"
+                    + "\tor <return> to start backup: ");
                 string input = Console.ReadLine();
 
                 if (input == "+")
@@ -106,6 +110,16 @@ namespace zsnapmgr
                     }
 
                     volumes.RemoveAt(n - 1);
+                }
+                else if (input.StartsWith("d") || input.StartsWith("D"))
+                {
+                    Console.Write("Snapshot date (yyyy-MM-dd): ");
+                    string date = Console.ReadLine();
+
+                    for (int i = 0; i < volumes.Count; i++)
+                    {
+                        volumes[i].SnapshotDate = date;
+                    }
                 }
                 else if (input == string.Empty)
                 {
@@ -253,7 +267,7 @@ namespace zsnapmgr
             }
         }
 
-        struct BackupOptions
+        class BackupOptions
         {
             public string Filename;
             public string Filesystem;
