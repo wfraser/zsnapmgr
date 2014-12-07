@@ -1,4 +1,4 @@
-﻿//#define NOZFS
+//#define NOZFS
 
 using System;
 using System.Diagnostics;
@@ -16,8 +16,8 @@ namespace zsnapmgr
             zfs.StartInfo.UseShellExecute = false;
             zfs.StartInfo.RedirectStandardOutput = true;
             zfs.StartInfo.RedirectStandardError = true;
-            zfs.StartInfo.FileName = "zfs";
-            zfs.StartInfo.Arguments = "list -t snap -H -p -o name,used,zsnapmgr:noautosnap";
+            zfs.StartInfo.FileName = "sudo";
+            zfs.StartInfo.Arguments = "zfs list -t snap -H -p -o name,used,zsnapmgr:noautosnap";
             zfs.Start();
 
             string output = zfs.StandardOutput.ReadToEnd();
@@ -57,8 +57,8 @@ namespace zsnapmgr
             zfs.StartInfo.UseShellExecute = false;
             zfs.StartInfo.RedirectStandardOutput = true;
             zfs.StartInfo.RedirectStandardError = true;
-            zfs.StartInfo.FileName = "zfs";
-            zfs.StartInfo.Arguments = string.Format("snapshot {0}", snapshotName);
+            zfs.StartInfo.FileName = "sudo";
+            zfs.StartInfo.Arguments = string.Format("zfs snapshot {0}", snapshotName);
             zfs.Start();
 
             string output = zfs.StandardOutput.ReadToEnd();
@@ -78,15 +78,13 @@ namespace zsnapmgr
                 throw new ArgumentException("snapshot name needs to contain '@' character");
             }
 
-            /*
-             * Don't delete; only suggest for now.
 #if !NOZFS
             var zfs = new Process();
             zfs.StartInfo.UseShellExecute = false;
             zfs.StartInfo.RedirectStandardOutput = true;
             zfs.StartInfo.RedirectStandardError = true;
-            zfs.StartInfo.FileName = "zfs";
-            zfs.StartInfo.Arguments = string.Format("destroy {0} -v", snapshotName);
+            zfs.StartInfo.FileName = "sudo";
+            zfs.StartInfo.Arguments = string.Format("zfs destroy {0} -v", snapshotName);
             zfs.Start();
 
             string output = zfs.StandardOutput.ReadToEnd();
@@ -97,13 +95,11 @@ namespace zsnapmgr
 #else
             return "Snapshot destroy not implemented.";
 #endif
-             */
-            return string.Format("{0} suggested for 'zfs destroy'\n");
         }
 
         public static void Send(string snapshotName, string destFilename, string incrementalName = null, string filterProgram = null)
         {
-            StringBuilder cmdline = new StringBuilder("zfs send -P -v");
+            StringBuilder cmdline = new StringBuilder("sudo zfs send -P -v");
             if (incrementalName != null)
             {
                 cmdline.AppendFormat(" -i '{0}'", incrementalName);
