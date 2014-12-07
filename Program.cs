@@ -1,8 +1,13 @@
+#define GPG
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace zsnapmgr
 {
@@ -200,6 +205,9 @@ namespace zsnapmgr
                 Console.WriteLine(ex.Message);
             }
 
+            if (files.Count() == 0)
+                return;
+
             string snapList = string.Join("\n",
                 files.Where(s => !s.EndsWith("_partial"))
                     .Select(s => new string(
@@ -275,8 +283,51 @@ namespace zsnapmgr
             public string IncrementalStartDate;
         }
 
+#if GPG
+        static string ReadPassphrase(string prompt)
+        {
+            Console.Write(string.Format("{0}: ", prompt));
+
+            string pass = string.Empty;
+            ConsoleKeyInfo key;
+            do
+            {
+                key = Console.ReadKey(true);
+                if (key.Key == ConsoleKey.Backspace && pass.Length > 0)
+                {
+                    Console.Write("\b");
+                    pass = pass.Substring(0, pass.Length - 1);
+                }
+                else if (key.Key != ConsoleKey.Enter)
+                {
+                    pass += key.KeyChar;
+                    Console.Write("*");
+                }
+            }
+            while (key.Key != ConsoleKey.Enter);
+            
+            Console.WriteLine();
+
+            return pass;
+        }
+#endif
+
         static void DoBackups(IEnumerable<BackupOptions> volumes, string mountPoint)
         {
+#if GPG
+            string pass1 = null, pass2 = null;
+            do
+            {
+                if (pass1 != pass2)
+                {
+                    Console.WriteLine("Passwords do not match.");
+                }
+                pass1 = ReadPassphrase("GPG passphrase");
+                pass2 = ReadPassphrase("again");
+            }
+            while (pass1 != pass2);
+#endif
+
             foreach (BackupOptions vol in volumes)
             {
                 if (vol.SnapshotDate == null)
@@ -295,11 +346,49 @@ namespace zsnapmgr
                 Console.WriteLine(vol.SnapshotDate);
                 Console.WriteLine();
 
+#if GPG
+                var mkfifo = new ProcessStartInfo();
+                mkfifo.FileName = "mkfifo";
+                mkfifo.Arguments = "z.fifo";
+                Process.Start(mkfifo);
+
+                var tasks = new Task[2];
+
+                tasks[0] = Task.Run(() => {
+                    Zfs.Send(
+                       string.Format("{0}@{1}", vol.Filesystem, vol.SnapshotDate),
+                        Path.Combine(mountPoint, string.Format("{0}@{1}.zfs.bz2.gpg", vol.Filename, vol.SnapshotDate)),
+                        (vol.IncrementalStartDate == null) ? null : string.Format("{0}@{1}", vol.Filesystem, vol.IncrementalStartDate),
+                        "pbzip2 | gpg --symmetric --output - --passphrase-file z.fifo --batch");
+                });
+
+                // HACK! This shouldn't be needed! :(
+                Thread.Sleep(100);
+                
+                tasks[1] = Task.Run(() => {
+                    using (var fifo = File.Open("z.fifo", FileMode.Open))
+                    {
+                        var enc = new UnicodeEncoding();
+                        byte[] bytes = enc.GetBytes(pass1);
+                        fifo.Write(bytes, 0, bytes.Length);
+                        fifo.Flush(true);
+                    }
+                });
+
+
+                Task.WaitAll(tasks);
+
+                var rm = new ProcessStartInfo();
+                rm.FileName = "rm";
+                rm.Arguments = "z.fifo";
+                Process.Start(rm);
+#else
                 Zfs.Send(
                     string.Format("{0}@{1}", vol.Filesystem, vol.SnapshotDate),
                     Path.Combine(mountPoint, string.Format("{0}@{1}.zfs.bz2", vol.Filename, vol.SnapshotDate)),
                     (vol.IncrementalStartDate == null) ? null : string.Format("{0}@{1}", vol.Filesystem, vol.IncrementalStartDate),
                     "pbzip2");
+#endif
                 Console.WriteLine();
             }
         }
@@ -337,17 +426,17 @@ namespace zsnapmgr
                         daysOld,
                         snap.Size.Value.HumanNumber("F2"),
                         count);
+                        
+                    var firstOfMonth = allSnaps.Snapshots(fs)
+                        .Select(e => e.Date)
+                        .Where(e => e.Year == snap.Date.Year)
+                        .Where(e => e.Month == snap.Date.Month)
+                        .OrderBy(e => e)
+                        .First();
 
                     if (count > 60)
                     {
                         // Keep only if the first snapshot of the month.
-
-                        var firstOfMonth = allSnaps.Snapshots(fs)
-                            .Select(e => e.Date)
-                            .Where(e => e.Year == snap.Date.Year)
-                            .Where(e => e.Month == snap.Date.Month)
-                            .OrderBy(e => e)
-                            .First();
 
                         if (snap.Date != firstOfMonth)
                         {
@@ -356,7 +445,7 @@ namespace zsnapmgr
                     }
                     else if (count > 30)
                     {
-                        // Keep only if the first snapshot of the week.
+                        // Keep only if the first snapshot of the week or month.
 
                         var firstOfWeek = allSnaps.Snapshots(fs)
                             .Select(e => e.Date)
@@ -365,7 +454,7 @@ namespace zsnapmgr
                             .OrderBy(e => e)
                             .First();
 
-                        if (snap.Date != firstOfWeek)
+                        if ((snap.Date != firstOfWeek) && (snap.Date != firstOfMonth))
                         {
                             delete = true;
                         }
@@ -383,7 +472,8 @@ namespace zsnapmgr
 
             foreach (ZfsSnapshots.SnapInfo delete in toDelete)
             {
-                Console.Write(ZfsSnapshots.Delete(delete));
+                Console.WriteLine("zfs destroy {0}", delete.Name);
+                Console.WriteLine(ZfsSnapshots.Delete(delete));
             }
         }
     }
