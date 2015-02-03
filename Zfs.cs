@@ -122,6 +122,7 @@ namespace zsnapmgr
             DateTime start = DateTime.Now;
             zfs.Start();
 
+            bool skipped = false;
             long size = 0;
             int lastLineLen = 0;
             for (;;)
@@ -135,6 +136,12 @@ namespace zsnapmgr
                 {
                     size = line.Substring(line.IndexOf('\t') + 1).AsLong();
                     Console.WriteLine("Full size: {0}B", size.HumanNumber("G4"));
+                    if (size == 0)
+                    {
+                        Console.WriteLine("Empty snapshot; skipping.");
+                        skipped = true;
+                        break;
+                    }
                 }
                 else if (line.StartsWith("full\t") || line.StartsWith("incremental\t"))
                 {
@@ -152,7 +159,15 @@ namespace zsnapmgr
             zfs.WaitForExit();
             var duration = (DateTime.Now - start).Duration();
 
-            File.Move(string.Format("{0}_partial", destFilename), destFilename);
+            if (skipped)
+            {
+                File.Delete(string.Format("{0}_partial", destFilename));
+                return;
+            }
+            else
+            {
+                File.Move(string.Format("{0}_partial", destFilename), destFilename);
+            }
 
             var fileInfo = new FileInfo(destFilename);
             string rate = (duration.TotalSeconds == 0) ? "NaN " : ((long)(size / duration.TotalSeconds)).HumanNumber("G4");
